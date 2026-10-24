@@ -416,6 +416,37 @@ function AuthPanel({ opacity }: { opacity: number }) {
 /* Page                                                                       */
 /* -------------------------------------------------------------------------- */
 
+/** Reveals sections as they enter the viewport, with the corridor's easing. */
+function useReveal() {
+  useEffect(() => {
+    const nodes = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
+    if (nodes.length === 0) return;
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      nodes.forEach((node) => node.classList.add("is-visible"));
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        }
+      },
+      { rootMargin: "0px 0px -10% 0px", threshold: 0.12 },
+    );
+
+    document.documentElement.classList.add("reveal-ready");
+    nodes.forEach((node) => observer.observe(node));
+    return () => {
+      observer.disconnect();
+      document.documentElement.classList.remove("reveal-ready");
+    };
+  }, []);
+}
+
 export default function LandingPage() {
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -424,6 +455,8 @@ export default function LandingPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef(0);
   const targetRef = useRef(0);
+
+  useReveal();
   const rafRef = useRef<number | null>(null);
   const reducedMotion = useRef(false);
 
@@ -649,7 +682,7 @@ export default function LandingPage() {
       </div>
 
       <div className="landing-body">
-        <section className="landing-section" aria-labelledby="landing-features">
+        <section className="landing-section" data-reveal aria-labelledby="landing-features">
           <p className="landing-eyebrow">THE WORKBENCH</p>
           <h2 className="landing-section-title" id="landing-features">
             Every part of the semester, on one desk.
@@ -672,7 +705,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section className="landing-section landing-section-alt" aria-labelledby="landing-course">
+        <section className="landing-section landing-section-alt" data-reveal aria-labelledby="landing-course">
           <div className="landing-split">
             <div className="landing-split-copy">
               <p className="landing-eyebrow">MADE FOR THE COURSE</p>
@@ -693,18 +726,37 @@ export default function LandingPage() {
               </ul>
             </div>
 
-            <dl className="landing-stats">
+            <div className="landing-stats">
               {STATS.map((stat) => (
-                <div key={stat.label}>
-                  <dt>{stat.label}</dt>
-                  <dd>{stat.value}</dd>
+                <div key={stat.value}>
+                  <span className="landing-stat-value">{stat.value}</span>
+                  <span className="landing-stat-label">{stat.label}</span>
                 </div>
               ))}
-            </dl>
+            </div>
           </div>
         </section>
 
-        <section className="landing-section" aria-labelledby="landing-session">
+        <section className="landing-section landing-gallery" data-reveal aria-labelledby="landing-gallery">
+          <p className="landing-eyebrow">INSIDE THE CORRIDOR</p>
+          <h2 className="landing-section-title" id="landing-gallery">
+            Nine rooms, one practice.
+          </h2>
+          <p className="landing-section-lead">
+            Each subject keeps its own room — the shelf, the notes, the briefs and the questions it
+            is examined on.
+          </p>
+          <div className="landing-strip">
+            {CARDS.map((card) => (
+              <figure className="landing-strip-card" key={card.title}>
+                <img src={card.src} alt="" loading="lazy" decoding="async" />
+                <figcaption>{card.title}</figcaption>
+              </figure>
+            ))}
+          </div>
+        </section>
+
+        <section className="landing-section" data-reveal aria-labelledby="landing-session">
           <p className="landing-eyebrow">A SESSION IN THE CHAMBERS</p>
           <h2 className="landing-section-title" id="landing-session">
             Read. Brief. Recite.
@@ -722,7 +774,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section className="landing-section landing-quote-section" aria-label="Study principle">
+        <section className="landing-section landing-quote-section" data-reveal aria-label="Study principle">
           <blockquote className="landing-quote">
             <p>
               “You do not understand a proposition until you can state it, cite it, and answer the
@@ -732,7 +784,7 @@ export default function LandingPage() {
           </blockquote>
         </section>
 
-        <section className="landing-cta" aria-labelledby="landing-cta-title">
+        <section className="landing-cta" data-reveal aria-labelledby="landing-cta-title">
           <h2 className="landing-section-title" id="landing-cta-title">
             Take the seat.
           </h2>

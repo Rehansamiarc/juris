@@ -9,22 +9,38 @@
   isolation: isolate;
   overflow-x: clip;
   color: var(--ink);
-  background:
-    radial-gradient(900px 640px at 50% 48%, rgba(197, 143, 57, 0.11), transparent 36%),
-    linear-gradient(145deg, #1d1912, #101010 48%, #090b0e);
+  background: #0e0d0b;
   outline: none;
   touch-action: pan-y;
 }
 
-:root:not(.dark) .landing {
+/* One ambient wash, fixed to the viewport, behind the corridor and every
+   section below it — so the page never visibly changes backdrop mid-scroll. */
+.landing::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
   background:
-    radial-gradient(900px 620px at 50% 45%, rgba(220, 173, 95, 0.32), transparent 37%),
+    radial-gradient(900px 640px at 50% 44%, rgba(197, 143, 57, 0.13), transparent 38%),
+    linear-gradient(145deg, #1d1912, #101010 48%, #090b0e);
+}
+
+:root:not(.dark) .landing {
+  background: #f0e7d6;
+}
+
+:root:not(.dark) .landing::before {
+  background:
+    radial-gradient(900px 620px at 50% 44%, rgba(220, 173, 95, 0.34), transparent 40%),
     linear-gradient(145deg, #f4eddd, #e5d8bf 50%, #d5c6ab);
 }
 
 /* The corridor is one screen; the sections below scroll normally. */
 .landing-pin {
   position: relative;
+  z-index: 1;
   height: 100dvh;
   overflow: hidden;
 }
@@ -930,14 +946,28 @@
 
 .landing-body {
   position: relative;
-  z-index: 2;
-  background: linear-gradient(180deg, #0f0d0a 0%, #0b0d10 45%, #0d0b09 100%);
-  border-top: 1px solid color-mix(in oklab, var(--gold) 18%, transparent);
+  z-index: 1;
+  background: transparent;
+  border-top: 1px solid color-mix(in oklab, var(--gold) 16%, transparent);
   color: var(--ink);
 }
 
-:root:not(.dark) .landing-body {
-  background: linear-gradient(180deg, #f2e9d8 0%, #ece2ce 45%, #f4ecdc 100%);
+/* The corridor's engraved grid continues under the prose. */
+.landing-body::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.55;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0 69px,
+    color-mix(in oklab, var(--gold) 6%, transparent) 70px,
+    transparent 71px
+  );
+  mask-image: linear-gradient(180deg, transparent, #000 5%, #000 95%, transparent);
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 5%, #000 95%, transparent);
 }
 
 .landing-section {
@@ -1075,18 +1105,20 @@
   background: color-mix(in oklab, var(--surface) 80%, transparent);
 }
 
-.landing-stats dt {
-  font-size: 10.5px;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.landing-stats dd {
-  margin: 8px 0 0;
+.landing-stat-value {
+  display: block;
   font-family: Georgia, "Times New Roman", serif;
   font-size: 26px;
   letter-spacing: -0.02em;
+}
+
+.landing-stat-label {
+  display: block;
+  margin-top: 7px;
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .landing-beats {
@@ -1239,6 +1271,89 @@
   .landing-feature,
   .landing-cta-primary,
   .landing-cta-secondary {
+    transition: none;
+  }
+}
+
+/* Filmstrip: the corridor's own imagery, carried into the body. */
+.landing-strip {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(188px, 230px);
+  gap: 14px;
+  overflow-x: auto;
+  padding: 6px 2px 18px;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gold) transparent;
+}
+
+.landing-strip-card {
+  position: relative;
+  margin: 0;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: #14110c;
+  scroll-snap-align: start;
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1), border-color 420ms ease;
+}
+
+.landing-strip-card:hover {
+  transform: translateY(-4px) scale(1.012);
+  border-color: color-mix(in oklab, var(--gold) 46%, transparent);
+}
+
+.landing-strip-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.94) contrast(1.04);
+}
+
+.landing-strip-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(transparent 40%, rgba(8, 8, 7, 0.88));
+}
+
+.landing-strip-card figcaption {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 1;
+  padding: 14px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: #f6eeda;
+}
+
+/* Scroll reveal — the corridor's ease, reused for the prose. Only armed once
+   the observer is live, so the sections are never hidden by a JS failure. */
+.reveal-ready [data-reveal] {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 760ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 760ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+.reveal-ready [data-reveal].is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-ready [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .landing-strip-card {
     transition: none;
   }
 }
