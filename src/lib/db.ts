@@ -163,9 +163,15 @@ function connect(): PostgresBridge {
       "DATABASE_URL is not set — point it at the Supabase Postgres connection string.",
     );
   }
-  const dataDir = path.join(process.cwd(), "data");
-  mkdirSync(dataDir, { recursive: true });
-  mkdirSync(path.join(dataDir, "uploads"), { recursive: true });
+  // Best effort: serverless runtimes mount the bundle read-only, and the
+  // database does not need the directory. Only scanner uploads do.
+  try {
+    const dataDir = path.join(process.cwd(), "data");
+    mkdirSync(dataDir, { recursive: true });
+    mkdirSync(path.join(dataDir, "uploads"), { recursive: true });
+  } catch {
+    // read-only filesystem — uploads will fail, queries still work
+  }
   return new PostgresBridge(url);
 }
 
