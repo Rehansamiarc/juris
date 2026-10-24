@@ -3,7 +3,20 @@
 import Link from "next/link";
 import { useActionState, useCallback, useEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
-import { ArrowDown, ArrowRight, Gavel, Moon, ShieldCheck, Sun } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowRight,
+  FileText,
+  Gavel,
+  Library,
+  MessagesSquare,
+  Moon,
+  Repeat,
+  ScanLine,
+  ShieldCheck,
+  Sun,
+  Target,
+} from "lucide-react";
 import { enterDemoAction, loginAction, signupAction, type AuthState } from "@/app/actions/auth";
 import "./landing.css";
 
@@ -38,6 +51,69 @@ const CARD_OFFSETS = [
 ];
 
 const CARD_TILTS = [6, -11, 16, -9, 14, -7, 12, -17, 10];
+
+/* Sections below the corridor. Copy stays factual to what the app ships. */
+const FEATURES = [
+  {
+    icon: Library,
+    title: "Bare acts and judgments",
+    body: "Official text kept separate from study commentary, so the section you cite is the section you read.",
+  },
+  {
+    icon: FileText,
+    title: "Case briefs",
+    body: "Facts, issue, holding and ratio in one frame, with the reasoning you would actually argue from.",
+  },
+  {
+    icon: Repeat,
+    title: "Spaced revision",
+    body: "A conservative SM-2 queue built only from your own briefs and notes, so nothing is invented to fill it.",
+  },
+  {
+    icon: Target,
+    title: "Practice sets",
+    body: "Quizzes drawn from the material you have studied, with the attempt history kept for the next round.",
+  },
+  {
+    icon: MessagesSquare,
+    title: "Tutor on the record",
+    body: "Ask questions against your library. Answers carry citations back to the passage they came from.",
+  },
+  {
+    icon: ScanLine,
+    title: "Scan the handout",
+    body: "Photograph a printed page or case note and keep it beside the rest of the material for that subject.",
+  },
+];
+
+const COURSE_POINTS = [
+  "Constitutional, criminal, contract, torts, family and procedural subjects",
+  "Every proposition carries the citation it rests on",
+  "Official text visually separated from commentary",
+  "Answer structure practised, not just recognised",
+];
+
+const STATS = [
+  { value: "Sections", label: "cited as the Act cites them" },
+  { value: "Ratio", label: "never the obiter" },
+  { value: "SRS", label: "cards from your own notes" },
+  { value: "Zero", label: "invented citations" },
+];
+
+const BEATS = [
+  {
+    title: "Read the provision",
+    body: "Open the section as enacted, then the commentary that explains what the courts have done with it.",
+  },
+  {
+    title: "Brief the case",
+    body: "Reduce the judgment to facts, issue, holding and ratio. If you cannot reduce it, you do not have it yet.",
+  },
+  {
+    title: "Recite it back",
+    body: "Rate the card, take the quiz, answer aloud. The queue returns to whatever you got wrong, sooner.",
+  },
+];
 
 const FALLBACK_IMAGE =
   "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='520'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23241f16'/%3E%3Cstop offset='100%25' stop-color='%23120f0b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='400' height='520' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%23d4a34c' stroke-width='1.2' stroke-opacity='0.55' stroke-linecap='round'%3E%3Cpath d='M70 120h260M70 160h180M70 200h220M70 240h160M70 280h240M70 320h190M70 360h210'/%3E%3C/g%3E%3Cg fill='%23f0c46e' font-family='Georgia, serif' text-anchor='middle'%3E%3Ctext x='200' y='410' font-size='22'%3ELAW%3C/text%3E%3Ctext x='200' y='438' font-size='14' fill-opacity='0.75'%3EStudy · Argue · Qualify%3C/text%3E%3C/g%3E%3C/svg%3E";
@@ -432,8 +508,11 @@ export default function LandingPage() {
       const panel = (event.target as HTMLElement | null)?.closest?.("[data-login-panel]");
       const step = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
 
+      // Once the corridor is walked, the page scrolls into the sections below.
+      if (step > 0 && targetRef.current >= 0.999) return;
+      if (window.scrollY > 4) return;
+
       // Let the panel scroll its own overflow once the login is fully open.
-      if (panel && step > 0 && targetRef.current >= 0.999) return;
       if (step < 0 && panel && (panel as HTMLElement).scrollTop > 0) return;
 
       event.preventDefault();
@@ -508,6 +587,7 @@ export default function LandingPage() {
       tabIndex={-1}
       aria-label="Juris law study portal"
     >
+      <div className="landing-pin">
       <div className="landing-atmosphere" aria-hidden="true" />
       <div className="landing-horizon" aria-hidden="true" />
 
@@ -565,6 +645,127 @@ export default function LandingPage() {
 
       <div className="landing-rail" aria-hidden="true">
         <span style={{ transform: `scaleX(${progress})` }} />
+      </div>
+      </div>
+
+      <div className="landing-body">
+        <section className="landing-section" aria-labelledby="landing-features">
+          <p className="landing-eyebrow">THE WORKBENCH</p>
+          <h2 className="landing-section-title" id="landing-features">
+            Every part of the semester, on one desk.
+          </h2>
+          <p className="landing-section-lead">
+            Bare provisions, reported judgments, your own notes and the revision queue that keeps
+            them alive between lectures.
+          </p>
+
+          <div className="landing-grid">
+            {FEATURES.map((feature) => (
+              <article className="landing-feature" key={feature.title}>
+                <span className="landing-feature-icon" aria-hidden="true">
+                  <feature.icon size={18} strokeWidth={1.7} />
+                </span>
+                <h3>{feature.title}</h3>
+                <p>{feature.body}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="landing-section landing-section-alt" aria-labelledby="landing-course">
+          <div className="landing-split">
+            <div className="landing-split-copy">
+              <p className="landing-eyebrow">MADE FOR THE COURSE</p>
+              <h2 className="landing-section-title" id="landing-course">
+                Written for the way Indian law is examined.
+              </h2>
+              <p className="landing-section-lead">
+                Sections cited as the Act cites them. Holdings kept to the ratio. Answer structure
+                practised out loud, not just read.
+              </p>
+              <ul className="landing-list">
+                {COURSE_POINTS.map((point) => (
+                  <li key={point}>
+                    <ShieldCheck size={15} strokeWidth={2} aria-hidden="true" />
+                    <span>{point}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <dl className="landing-stats">
+              {STATS.map((stat) => (
+                <div key={stat.label}>
+                  <dt>{stat.label}</dt>
+                  <dd>{stat.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </section>
+
+        <section className="landing-section" aria-labelledby="landing-session">
+          <p className="landing-eyebrow">A SESSION IN THE CHAMBERS</p>
+          <h2 className="landing-section-title" id="landing-session">
+            Read. Brief. Recite.
+          </h2>
+          <div className="landing-beats">
+            {BEATS.map((beat, index) => (
+              <article className="landing-beat" key={beat.title}>
+                <span className="landing-beat-index" aria-hidden="true">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <h3>{beat.title}</h3>
+                <p>{beat.body}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="landing-section landing-quote-section" aria-label="Study principle">
+          <blockquote className="landing-quote">
+            <p>
+              “You do not understand a proposition until you can state it, cite it, and answer the
+              question that follows.”
+            </p>
+            <cite>The chambers rule</cite>
+          </blockquote>
+        </section>
+
+        <section className="landing-cta" aria-labelledby="landing-cta-title">
+          <h2 className="landing-section-title" id="landing-cta-title">
+            Take the seat.
+          </h2>
+          <p className="landing-section-lead">
+            Your cases, notes and revision queue are waiting. Start with the demo workspace, or make
+            the account yours.
+          </p>
+          <div className="landing-cta-actions">
+            <form action={enterDemoAction}>
+              <button type="submit" className="landing-cta-primary">
+                <span>Enter demo workspace</span>
+                <ArrowRight size={16} strokeWidth={2} aria-hidden="true" />
+              </button>
+            </form>
+            <Link href="/signup" className="landing-cta-secondary">
+              Create an account
+            </Link>
+            <Link href="/login" className="landing-cta-secondary">
+              Sign in
+            </Link>
+          </div>
+        </section>
+
+        <footer className="landing-footer">
+          <span className="landing-mark" aria-hidden="true">
+            <span>J</span>
+            <i />
+          </span>
+          <p>Juris · study, argue, qualify</p>
+          <p className="landing-footer-fine">
+            Educational material only, not legal advice. Verify every holding in the reporter.
+          </p>
+        </footer>
       </div>
     </main>
   );
