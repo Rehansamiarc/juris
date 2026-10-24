@@ -1,37 +1,33 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
 import { Icon } from "./icons";
 
 export function ThemeToggle({ compact = false }: { compact?: boolean }) {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  // Delegated to next-themes so the class attribute and the storage key the
+  // provider reads (juris-theme) stay the source of truth — toggling the class
+  // by hand never persisted and got reverted on hydration.
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    const isDark = document.documentElement.classList.contains("dark");
-    setTheme(isDark ? "dark" : "light");
-  }, []);
+  useEffect(() => setMounted(true), []);
 
-  function toggle() {
-    const next = theme === "dark" ? "light" : "dark";
-    setTheme(next);
-    document.documentElement.classList.toggle("dark", next === "dark");
-    try {
-      localStorage.setItem("vidhi-theme", next);
-    } catch {
-      /* storage may be unavailable */
-    }
-  }
+  const isDark = mounted && resolvedTheme === "dark";
+  const label = mounted ? (isDark ? "light" : "dark") : "dark";
 
   return (
     <button
       type="button"
-      onClick={toggle}
+      onClick={() => setTheme(isDark ? "light" : "dark")}
       className={compact ? "btn btn-ghost px-2" : "btn btn-ghost w-full justify-start"}
-      aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-      title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+      aria-label={mounted ? `Switch to ${label} mode` : "Toggle colour mode"}
+      title={mounted ? `Switch to ${label} mode` : "Toggle colour mode"}
     >
-      <Icon name={theme === "dark" ? "sun" : "moon"} size={16} />
-      {compact ? null : <span className="text-xs">{theme === "dark" ? "Light mode" : "Dark mode"}</span>}
+      <Icon name={mounted && isDark ? "sun" : "moon"} size={16} />
+      {compact ? null : (
+        <span className="text-xs">{mounted ? `${label === "dark" ? "Dark" : "Light"} mode` : "Theme"}</span>
+      )}
     </button>
   );
 }

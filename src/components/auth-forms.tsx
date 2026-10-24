@@ -119,7 +119,7 @@ export function LoginForm({ notice }: { notice?: string }) {
       </div>
       <Submit label="Sign in" pending={pending} />
       <p className="mt-5 text-center text-sm text-muted">
-        New to Vidhi?{" "}
+        New to Juris?{" "}
         <Link href="/signup" className="link-gold font-medium">
           Create an account
         </Link>
@@ -202,7 +202,7 @@ export function SignupForm() {
         </Link>
       </p>
       <p className="mt-4 text-center text-[11px] leading-relaxed text-muted">
-        Vidhi is a study aid, not legal advice. We store your notes and uploads privately on this workspace.
+        Juris is a study aid, not legal advice. We store your notes and uploads privately on this workspace.
       </p>
     </form>
   );

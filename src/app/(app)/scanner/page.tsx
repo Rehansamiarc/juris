@@ -77,7 +77,7 @@ export default async function ScannerPage() {
             <p className="text-sm font-semibold">Never invented</p>
           </div>
           <p className="mt-2 text-[11.5px] leading-relaxed text-muted">
-            If a field is not supported by the page text, Vidhi writes “not available” and lists it under
+            If a field is not supported by the page text, Juris writes “not available” and lists it under
             missing. Nothing is filled in from memory.
           </p>
           <span className="chip chip-gold mt-2">Edit before you trust</span>

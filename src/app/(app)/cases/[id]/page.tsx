@@ -267,7 +267,7 @@ export default async function CasePage({
               </div>
               <div className="flex justify-between gap-2">
                 <dt className="text-muted">Origin</dt>
-                <dd>{isOwner ? "Your upload" : "Vidhi library"}</dd>
+                <dd>{isOwner ? "Your upload" : "Juris library"}</dd>
               </div>
               <div className="flex justify-between gap-2">
                 <dt className="text-muted">Cards</dt>

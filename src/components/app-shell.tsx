@@ -69,7 +69,7 @@ export function AppShell({
           <Link href="/home" className="flex items-center gap-2.5">
             <Monogram />
             <span>
-              <span className="block font-display text-[1.35rem] leading-none tracking-tight">Vidhi</span>
+              <span className="block font-display text-[1.35rem] leading-none tracking-tight">Juris</span>
               <span className="mt-1 block text-[10px] font-medium uppercase tracking-[0.22em] text-muted">
                 Law, understood
               </span>
@@ -155,7 +155,7 @@ export function AppShell({
       <div className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-paper/85 px-4 py-3 backdrop-blur-xl lg:hidden">
         <Link href="/home" className="flex items-center gap-2">
           <Monogram className="h-8 w-8" />
-          <span className="font-display text-xl leading-none">Vidhi</span>
+          <span className="font-display text-xl leading-none">Juris</span>
         </Link>
         <div className="flex items-center gap-1.5">
           {streak > 0 ? (
@@ -177,7 +177,7 @@ export function AppShell({
         <header className="sticky top-0 z-20 hidden h-16 items-center justify-between border-b border-line/70 bg-paper/80 px-8 backdrop-blur-xl lg:flex">
           <div className="flex items-center gap-2 text-[12.5px] text-muted">
             <Icon name="gavel" size={14} className="text-gold" />
-            <span>Vidhi Study Workspace</span>
+            <span>Juris Study Workspace</span>
             <span className="text-line-strong">/</span>
             <span className="text-ink">{sectionLabel ?? "Workspace"}</span>
           </div>

@@ -237,7 +237,7 @@ export default async function DocumentReaderPage({ params }: { params: Promise<{
               </div>
               <div>
                 <dt className="text-muted">Owner</dt>
-                <dd className="font-medium">{doc.ownerId ? "You" : "Vidhi curated library"}</dd>
+                <dd className="font-medium">{doc.ownerId ? "You" : "Juris curated library"}</dd>
               </div>
             </dl>
             {doc.sourceUrl ? (

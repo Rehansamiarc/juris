@@ -18,7 +18,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <Link href="/" className="inline-flex items-center gap-2.5">
             <Monogram className="bg-white/10 ring-1 ring-white/15" />
             <span>
-              <span className="block font-display text-2xl leading-none">Vidhi</span>
+              <span className="block font-display text-2xl leading-none">Juris</span>
               <span className="mt-1 block text-[10px] uppercase tracking-[0.24em] text-[#c9b78f]">
                 Law, understood
               </span>
@@ -58,7 +58,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="flex items-center justify-between px-5 py-5 sm:px-8">
           <Link href="/" className="flex items-center gap-2 lg:invisible">
             <Monogram />
-            <span className="font-display text-xl">Vidhi</span>
+            <span className="font-display text-xl">Juris</span>
           </Link>
           <div className="ml-auto">
             <ThemeToggle compact />
@@ -69,7 +69,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </div>
         <footer className="px-6 pb-6 text-center text-[11px] text-muted">
           <Link href="/" className="hover:text-gold">
-            ← Back to vidhi.app
+            ← Back to Juris
           </Link>
         </footer>
       </main>

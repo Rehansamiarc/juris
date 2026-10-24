@@ -11,7 +11,7 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("Vidhi error boundary:", error);
+    console.error("Juris error boundary:", error);
   }, [error]);
 
   return (

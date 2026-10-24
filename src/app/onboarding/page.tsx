@@ -17,7 +17,7 @@ export default async function OnboardingPage() {
       <header className="flex items-center justify-between px-5 py-5 sm:px-8">
         <Link href="/" className="flex items-center gap-2.5">
           <Monogram />
-          <span className="font-display text-xl">Vidhi</span>
+          <span className="font-display text-xl">Juris</span>
         </Link>
         <ThemeToggle compact />
       </header>

@@ -135,7 +135,7 @@ export function TutorChat({
             <Icon name="tutor" size={14} />
           </span>
           <div>
-            <p className="text-[12.5px] font-semibold">Vidhi tutor</p>
+            <p className="text-[12.5px] font-semibold">Juris tutor</p>
             <p className="text-[9.5px] text-muted">
               {aiReady ? "Grounded in your library · cites its sources" : "Local extractive mode · sources only"}
             </p>

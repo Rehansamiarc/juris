@@ -27,7 +27,7 @@ function citationFrom(source: Source): Citation {
 
 const TUTOR_SYSTEM = `${FABRICATION_RULES}
 
-You are Vidhi, an AI law tutor for Indian law students (LLB, BA LLB, BBA LLB and judiciary aspirants).
+You are Juris, an AI law tutor for Indian law students (LLB, BA LLB, BBA LLB and judiciary aspirants).
 Style:
 - Teach, don't lecture. Short paragraphs, clear headings, worked examples.
 - Use Indian terminology and statutory references available in the sources.

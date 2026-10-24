@@ -95,7 +95,7 @@ export default async function ProfilePage() {
             <p className="text-[10.5px] leading-relaxed text-muted">
               {ai.configured
                 ? `Case briefs and tutor answers use ${ai.model}; page images use ${ai.visionModel}.`
-                : "Without a provider, Vidhi still parses text-based PDFs, extracts metadata and runs the library, revision and practice tools. Photos need a vision model."}
+                : "Without a provider, Juris still parses text-based PDFs, extracts metadata and runs the library, revision and practice tools. Photos need a vision model."}
             </p>
             <dl className="mt-2 space-y-1 text-[10px]">
               <div className="flex justify-between gap-2">
@@ -123,7 +123,7 @@ export default async function ProfilePage() {
               <li>• Your account, notes, uploads and cards live in this workspace’s SQLite database.</li>
               <li>• Pages you scan stay in your own upload folder and are served only to your session.</li>
               <li>• When an AI provider is configured, page images and prompts are sent to it for processing.</li>
-              <li>• Vidhi does not provide legal advice or publish your material.</li>
+              <li>• Juris does not provide legal advice or publish your material.</li>
             </ul>
           </section>
 

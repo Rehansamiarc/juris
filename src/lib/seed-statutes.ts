@@ -476,7 +476,7 @@ export const SEED_NOTES: SeedDocument[] = [
     verification: "ai-generated",
     explanation:
       "A case brief is a tool for recall, not a book report. The eight-line method: (1) identity — party names, court, year, citation; (2) facts in four sentences, only those the holding depends on; (3) the procedural journey — who won below and why it reached this court; (4) the question(s) the court had to answer; (5) the holding, stated as an answer to each question; (6) the ratio — the rule necessary to the decision; (7) the reasoning — how the court got there, including the provisions construed; (8) the residue — obiter, dissents, and what the case does not decide.\n\nWrite the ratio in your own words and then check it against the headnote. If your sentence needs the word “probably”, you have not found the ratio. For Indian judgments, note the Bench strength: a five-judge Constitution Bench carries more weight than a two-judge bench, and a later coordinate bench cannot overrule it.\n\nKeep a one-line “why it matters” at the top of every brief. In the exam, that line is your topic sentence; the rest is support.",
-    meta: { tags: ["method", "case brief", "exams"], verificationNote: "Original study note written for Vidhi." },
+    meta: { tags: ["method", "case brief", "exams"], verificationNote: "Original study note written for Juris." },
   },
   {
     id: "note-reading-statute",
@@ -491,7 +491,7 @@ export const SEED_NOTES: SeedDocument[] = [
       "Start with the long title, the preamble and the definitions section, in that order. Definitions tell you which words are terms of art; the preamble tells you the mischief the Act addresses. Then read the operative provision and map its ingredients as a checklist: every “whoever”, “shall”, “with intent to” and proviso is a separate element that the prosecution or plaintiff must establish.\n\nUse the provisos and exceptions as a second column. An exam answer that states the rule but ignores the exception is half an answer. Then locate the penalty or remedy section — the consequence often reveals how the legislature understood the wrong.\n\nFinally, read the amendment history. A section that has been amended twice usually has a story, and that story is a favourite fact pattern. Cross-check the current text on India Code; commentaries are useful for argument, not for the words of the section.",
     meta: {
       tags: ["method", "statutory interpretation", "exams"],
-      verificationNote: "Original study note written for Vidhi.",
+      verificationNote: "Original study note written for Juris.",
     },
   },
 ];

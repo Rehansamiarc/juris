@@ -82,7 +82,7 @@ export function briefToMarkdown(brief: CaseBrief, meta: { sourceUrl?: string | n
   const lines: string[] = [];
   lines.push(`# ${brief.caseName}`);
   lines.push("");
-  lines.push(`> Generated with Vidhi · ${brief.generatedBy === "ai" ? "AI-assisted, verified by you" : "Local extraction — not AI-generated"}`);
+  lines.push(`> Generated with Juris · ${brief.generatedBy === "ai" ? "AI-assisted, verified by you" : "Local extraction — not AI-generated"}`);
   if (meta.sourceUrl) lines.push(`> Source: ${meta.sourceUrl}`);
   if (meta.verified) lines.push(`> Verification: ${meta.verified}`);
   lines.push("");

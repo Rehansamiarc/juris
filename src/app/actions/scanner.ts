@@ -234,7 +234,7 @@ export async function generateCaseFromScanAction(
     ownerId: user.id,
     kind: "brief",
     title: title.slice(0, 200),
-    subtitle: "Scanned and structured with Vidhi",
+    subtitle: "Scanned and structured with Juris",
     citation: brief.citation !== UNAVAILABLE ? brief.citation : undefined,
     court: brief.court !== UNAVAILABLE ? brief.court : undefined,
     year: yearMatch ? Number(yearMatch[0]) : undefined,
