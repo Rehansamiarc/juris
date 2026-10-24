@@ -1,0 +1,13 @@
+node_modules
+.next
+data
+.env
+.env.local
+.env*.local
+*.log
+tsconfig.tsbuildinfo
+next-env.d.ts
+.freebuff
+jurid-standalone.html
+juris-standalone.html
+.DS_Store
