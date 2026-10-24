@@ -35,11 +35,16 @@ const { createRequire } = require("node:module");
 const requireFromProject = createRequire(workerData.cwd + "/");
 const postgres = requireFromProject("postgres");
 
+// CI and local test databases run plain Postgres without TLS; hosted Supabase
+// always requires it.
+const plaintext =
+  /sslmode=disable/.test(workerData.url) || /@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(workerData.url);
+
 // idle_timeout 0 + max_lifetime null keep connections alive between requests:
 // the TLS + auth handshake to Supabase costs ~7s, so reconnecting per request
 // dominates every page render.
 const sql = postgres(workerData.url, {
-  ssl: "require",
+  ssl: plaintext ? false : "require",
   max: 6,
   idle_timeout: 0,
   max_lifetime: null,
