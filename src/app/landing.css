@@ -38,8 +38,16 @@
 }
 
 /* The corridor is one screen; the sections below scroll normally. */
-.landing-pin {
+/* Two viewports of scroll: one to walk the corridor, one to hand over to the
+   sections below. The pin sticks for the first and releases after it. */
+.landing-journey {
   position: relative;
+  height: 200dvh;
+}
+
+.landing-pin {
+  position: sticky;
+  top: 0;
   z-index: 1;
   height: 100dvh;
   overflow: hidden;

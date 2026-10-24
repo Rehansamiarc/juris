@@ -499,9 +499,15 @@ export default function LandingPage() {
     rafRef.current = requestAnimationFrame(tick);
   }, []);
 
-  const apply = useCallback(
-    (delta: number) => {
-      const next = clamp(targetRef.current + delta);
+  /* Scroll-driven corridor. The page owns the scroll; we only read it. No
+     input is captured, so trackpad, mouse wheel, touch and keyboard all just
+     work, and the sections below are always reachable. */
+  useEffect(() => {
+    const CORRIDOR_SCROLL = () => window.innerHeight;
+
+    const onScroll = () => {
+      const next = clamp(window.scrollY / CORRIDOR_SCROLL());
+      if (Math.abs(next - targetRef.current) < 0.0005) return;
       targetRef.current = next;
 
       if (reducedMotion.current) {
@@ -510,16 +516,16 @@ export default function LandingPage() {
         return;
       }
       settle();
-    },
-    [settle],
-  );
+    };
 
-  useEffect(
-    () => () => {
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-    },
-    [],
-  );
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    onScroll();
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [settle]);
 
   /* Stage scaling keeps the spiral on-screen on narrow viewports. */
   useEffect(() => {
@@ -532,93 +538,6 @@ export default function LandingPage() {
     return () => window.removeEventListener("resize", measure);
   }, []);
 
-  /* Wheel: one continuous journey, reversible. */
-  useEffect(() => {
-    const node = containerRef.current;
-    if (!node) return;
-
-    const onWheel = (event: WheelEvent) => {
-      const panel = (event.target as HTMLElement | null)?.closest?.("[data-login-panel]");
-      const step = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
-
-      // Once the corridor is walked, the page scrolls into the sections below.
-      if (step > 0 && targetRef.current >= 0.999) return;
-      if (window.scrollY > 4) return;
-
-      // Let the panel scroll its own overflow once the login is fully open.
-      if (step < 0 && panel && (panel as HTMLElement).scrollTop > 0) return;
-
-      event.preventDefault();
-      // A gentler per-event impulse: the ease does the travelling now.
-      apply(clamp(step * 0.0016, -0.1, 0.1));
-    };
-
-    node.addEventListener("wheel", onWheel, { passive: false });
-    return () => node.removeEventListener("wheel", onWheel);
-  }, [apply]);
-
-  /* Touch: swipe up to walk forward, swipe down to step back. */
-  useEffect(() => {
-    const node = containerRef.current;
-    if (!node) return;
-    let lastY = 0;
-
-    const onTouchStart = (event: TouchEvent) => {
-      lastY = event.touches[0].clientY;
-    };
-    const onTouchMove = (event: TouchEvent) => {
-      // Below the corridor the page scrolls itself.
-      if (window.scrollY > 4) return;
-      const y = event.touches[0].clientY;
-      const dy = lastY - y;
-      if (Math.abs(dy) > 10) {
-        apply(clamp(dy * 0.0018, -0.06, 0.06));
-        lastY = y;
-      }
-    };
-
-    node.addEventListener("touchstart", onTouchStart, { passive: true });
-    node.addEventListener("touchmove", onTouchMove, { passive: true });
-    return () => {
-      node.removeEventListener("touchstart", onTouchStart);
-      node.removeEventListener("touchmove", onTouchMove);
-    };
-  }, [apply]);
-
-  /* Keyboard journey. */
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      const typing =
-        !!target &&
-        (target.isContentEditable ||
-          ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
-      // Never steal keys from the sign-in form.
-      if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
-      // Once the reader is in the sections, the keyboard belongs to the page.
-      if (window.scrollY > 4) return;
-
-      const forward = ["ArrowDown", "PageDown", " ", "Spacebar"];
-      const backward = ["ArrowUp", "PageUp"];
-
-      if (forward.includes(event.key)) {
-        if (targetRef.current >= 0.999) return;
-        event.preventDefault();
-        apply(0.09);
-      } else if (backward.includes(event.key)) {
-        event.preventDefault();
-        apply(-0.09);
-      } else if (event.key === "Home") {
-        event.preventDefault();
-        apply(-1);
-      } else if (event.key === "End") {
-        event.preventDefault();
-        apply(1);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [apply]);
 
   const heroOpacity = 1 - smoothstep(0.02, 0.34, progress);
   const cueOpacity = 1 - smoothstep(0, 0.1, progress);
@@ -633,6 +552,7 @@ export default function LandingPage() {
       tabIndex={-1}
       aria-label="Juris law study portal"
     >
+      <div className="landing-journey">
       <div className="landing-pin">
       <div className="landing-atmosphere" aria-hidden="true" />
       <div className="landing-horizon" aria-hidden="true" />
@@ -656,7 +576,16 @@ export default function LandingPage() {
           >
             {isDark ? <Sun size={17} strokeWidth={1.7} /> : <Moon size={17} strokeWidth={1.7} />}
           </button>
-          <button type="button" className="landing-skip" onClick={() => apply(1)}>
+          <button
+            type="button"
+            className="landing-skip"
+            onClick={() =>
+              window.scrollTo({
+                top: window.innerHeight * 0.64,
+                behavior: reducedMotion.current ? "auto" : "smooth",
+              })
+            }
+          >
             Skip to login
             <ArrowDown size={14} strokeWidth={1.9} aria-hidden="true" />
           </button>
@@ -691,6 +620,7 @@ export default function LandingPage() {
 
       <div className="landing-rail" aria-hidden="true">
         <span style={{ transform: `scaleX(${progress})` }} />
+      </div>
       </div>
       </div>
 
