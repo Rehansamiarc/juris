@@ -235,6 +235,7 @@
   position: absolute;
   top: 50%;
   left: 50%;
+  will-change: transform, opacity;
   width: 0;
   height: 0;
   transform-style: preserve-3d;

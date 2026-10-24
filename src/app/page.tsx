@@ -567,6 +567,8 @@ export default function LandingPage() {
       lastY = event.touches[0].clientY;
     };
     const onTouchMove = (event: TouchEvent) => {
+      // Below the corridor the page scrolls itself.
+      if (window.scrollY > 4) return;
       const y = event.touches[0].clientY;
       const dy = lastY - y;
       if (Math.abs(dy) > 10) {
@@ -586,10 +588,21 @@ export default function LandingPage() {
   /* Keyboard journey. */
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const typing =
+        !!target &&
+        (target.isContentEditable ||
+          ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+      // Never steal keys from the sign-in form.
+      if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
+      // Once the reader is in the sections, the keyboard belongs to the page.
+      if (window.scrollY > 4) return;
+
       const forward = ["ArrowDown", "PageDown", " ", "Spacebar"];
       const backward = ["ArrowUp", "PageUp"];
 
       if (forward.includes(event.key)) {
+        if (targetRef.current >= 0.999) return;
         event.preventDefault();
         apply(0.09);
       } else if (backward.includes(event.key)) {
