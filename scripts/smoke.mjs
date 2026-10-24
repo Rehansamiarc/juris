@@ -42,6 +42,7 @@ const failures = [];
 const serverLog = [];
 let server;
 let sql;
+let inspector;
 
 function fail(message) {
   failures.push(message);
@@ -210,24 +211,44 @@ async function main() {
     await waitFor(async () => (await get("/login")).status === 200, READY_TIMEOUT_MS, "server readiness");
     ok("server answered /login");
 
-    // The app seeds its demo dataset on first database access, so this is also
-    // the assertion that the server is talking to *this* database.
-    const seeded = await waitFor(
+    // The app connects and seeds lazily on its first query. /api/health runs
+    // one (`SELECT 1`), which both proves the connection works and populates
+    // the demo dataset before we look for it.
+    const health = await waitFor(
       async () => {
-        const [row] = await sql`select count(*)::int as n from documents`;
-        return row.n > 0 ? row.n : 0;
+        const response = await get("/api/health");
+        return response.status === 200 ? response : null;
       },
       SEED_TIMEOUT_MS,
+      "health check (which seeds the database)",
+    );
+    ok(`/api/health -> ${health.status} ${health.body.trim()}`);
+
+    // A fresh client for the assertions: the long seed can outlive the idle
+    // connection used for schema setup.
+    inspector = postgres(smokeUrl, {
+      ssl: sslFor(smokeUrl),
+      max: 1,
+      connect_timeout: 20,
+      onnotice: () => {},
+    });
+
+    const seeded = await waitFor(
+      async () => {
+        const [row] = await inspector`select count(*)::int as n from documents`;
+        return row.n > 0 ? row.n : 0;
+      },
+      60_000,
       "demo seed",
     );
     ok(`seed wrote ${seeded} documents into the test database`);
 
-    const [user] = await sql`select id from users where email = 'demo@vidhi.app'`;
+    const [user] = await inspector`select id from users where email = 'demo@vidhi.app'`;
     if (!user) throw new Error("seeded demo user missing");
 
     const token = randomBytes(32).toString("base64url");
     const sessionId = createHash("sha256").update(token).digest("hex");
-    await sql`
+    await inspector`
       insert into sessions (id, user_id, expires_at, created_at)
       values (${sessionId}, ${user.id}, ${new Date(Date.now() + 86_400_000).toISOString()}, ${new Date().toISOString()})
     `;
@@ -259,6 +280,7 @@ async function main() {
     fail(error.message);
   } finally {
     server?.kill();
+    await inspector?.end({ timeout: 5 }).catch(() => {});
     await sql?.end({ timeout: 5 }).catch(() => {});
   }
 

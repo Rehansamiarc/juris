@@ -162,7 +162,19 @@ function connect(): PostgresBridge {
   return new PostgresBridge(url);
 }
 
-const bridge: PostgresBridge = globalThis.__vidhiPg ?? (globalThis.__vidhiPg = connect());
+let activeBridge: PostgresBridge | undefined = globalThis.__vidhiPg;
+
+/**
+ * Connected lazily on first query so a missing DATABASE_URL surfaces as a
+ * readable 503 from /api/health instead of crashing module evaluation.
+ */
+function bridge(): PostgresBridge {
+  if (!activeBridge) {
+    activeBridge = globalThis.__vidhiPg = connect();
+    seedIfEmpty({ run, one });
+  }
+  return activeBridge;
+}
 
 /** Rewrites SQLite `?` placeholders into Postgres `$1..$n`, skipping literals. */
 function toPostgres(sql: string): string {
@@ -187,21 +199,19 @@ function toPostgres(sql: string): string {
 }
 
 export function all<T>(sql: string, ...params: Param[]): T[] {
-  return bridge.query(toPostgres(sql), params).rows as T[];
+  return bridge().query(toPostgres(sql), params).rows as T[];
 }
 
 export function one<T>(sql: string, ...params: Param[]): T | undefined {
-  return (bridge.query(toPostgres(sql), params).rows as T[])[0];
+  return (bridge().query(toPostgres(sql), params).rows as T[])[0];
 }
 
 export function run(sql: string, ...params: Param[]) {
-  const reply = bridge.query(toPostgres(sql), params);
+  const reply = bridge().query(toPostgres(sql), params);
   return { changes: reply.count, rows: reply.rows };
 }
 
 export const nowIso = () => new Date().toISOString();
-
-seedIfEmpty({ run, one });
 
 
 /* ---------------------------------- users --------------------------------- */

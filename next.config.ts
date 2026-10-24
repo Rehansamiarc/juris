@@ -6,7 +6,10 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "10mb",
     },
   },
-  serverExternalPackages: ["unpdf"],
+  // postgres must stay outside the server bundle: the data layer requires it
+  // from process.cwd() inside a worker thread, so the tracer has to ship it in
+  // node_modules (Vercel and other build-then-run hosts).
+  serverExternalPackages: ["unpdf", "postgres"],
 };
 
 export default nextConfig;
