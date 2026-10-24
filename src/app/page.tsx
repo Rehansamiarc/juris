@@ -347,18 +347,70 @@ export default function LandingPage() {
   const [stageScale, setStageScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef(0);
+  const targetRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
+  const reducedMotion = useRef(false);
+
+  useEffect(() => {
+    reducedMotion.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }, []);
 
   useEffect(() => setMounted(true), []);
 
   const isDark = mounted ? resolvedTheme !== "light" : true;
 
-  const apply = useCallback((delta: number) => {
-    setProgress((prev) => {
-      const next = clamp(prev + delta);
-      progressRef.current = next;
-      return next;
-    });
+  /*
+   * One continuous scrub. Input moves a target; a frame loop glides the
+   * rendered progress toward it, so wheel ticks, swipes and key presses blend
+   * into a single motion instead of advancing in visible steps.
+   */
+  const settle = useCallback(() => {
+    if (rafRef.current !== null) return;
+    let last = performance.now();
+
+    const tick = (now: number) => {
+      const elapsed = Math.min(64, now - last);
+      last = now;
+      const distance = targetRef.current - progressRef.current;
+
+      if (Math.abs(distance) < 0.0004) {
+        progressRef.current = targetRef.current;
+        setProgress(targetRef.current);
+        rafRef.current = null;
+        return;
+      }
+
+      // ~0.16 of the remaining distance per 60fps frame, frame-rate adjusted.
+      const ease = 1 - Math.pow(1 - 0.16, elapsed / 16.667);
+      progressRef.current += distance * ease;
+      setProgress(progressRef.current);
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
   }, []);
+
+  const apply = useCallback(
+    (delta: number) => {
+      const next = clamp(targetRef.current + delta);
+      targetRef.current = next;
+
+      if (reducedMotion.current) {
+        progressRef.current = next;
+        setProgress(next);
+        return;
+      }
+      settle();
+    },
+    [settle],
+  );
+
+  useEffect(
+    () => () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    },
+    [],
+  );
 
   /* Stage scaling keeps the spiral on-screen on narrow viewports. */
   useEffect(() => {
@@ -381,11 +433,12 @@ export default function LandingPage() {
       const step = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
 
       // Let the panel scroll its own overflow once the login is fully open.
-      if (panel && step > 0 && progressRef.current >= 0.999) return;
+      if (panel && step > 0 && targetRef.current >= 0.999) return;
       if (step < 0 && panel && (panel as HTMLElement).scrollTop > 0) return;
 
       event.preventDefault();
-      apply(clamp(step * 0.0022, -0.18, 0.18));
+      // A gentler per-event impulse: the ease does the travelling now.
+      apply(clamp(step * 0.0016, -0.1, 0.1));
     };
 
     node.addEventListener("wheel", onWheel, { passive: false });
@@ -405,7 +458,7 @@ export default function LandingPage() {
       const y = event.touches[0].clientY;
       const dy = lastY - y;
       if (Math.abs(dy) > 10) {
-        apply(clamp(dy * 0.0022, -0.09, 0.09));
+        apply(clamp(dy * 0.0018, -0.06, 0.06));
         lastY = y;
       }
     };
