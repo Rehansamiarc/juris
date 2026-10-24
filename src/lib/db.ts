@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { Worker } from "node:worker_threads";
 import type {
   ActivityRecord,
   CaseBrief,
@@ -19,228 +19,185 @@ import type {
 } from "./types";
 import { seedIfEmpty } from "./seed";
 
-const SCHEMA = `
-PRAGMA journal_mode = WAL;
+/*
+ * Postgres bridge
+ * ---------------
+ * The data layer used to be node:sqlite, which is synchronous — every call
+ * site in the app (pages, server actions, lib helpers) relies on that. The
+ * Postgres driver is async, so queries run in a worker thread and the calling
+ * thread blocks on Atomics.wait for the reply. `all` / `one` / `run` keep
+ * their exact signatures while the rows come from Supabase Postgres.
+ */
 
-CREATE TABLE IF NOT EXISTS users (
-  id TEXT PRIMARY KEY,
-  email TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  name TEXT NOT NULL,
-  created_at TEXT NOT NULL
-);
+const BRIDGE_SRC = String.raw`
+const { parentPort, workerData } = require("node:worker_threads");
+const { createRequire } = require("node:module");
+const requireFromProject = createRequire(workerData.cwd + "/");
+const postgres = requireFromProject("postgres");
 
-CREATE TABLE IF NOT EXISTS sessions (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  expires_at TEXT NOT NULL,
-  created_at TEXT NOT NULL
-);
+// idle_timeout 0 + max_lifetime null keep connections alive between requests:
+// the TLS + auth handshake to Supabase costs ~7s, so reconnecting per request
+// dominates every page render.
+const sql = postgres(workerData.url, {
+  ssl: "require",
+  max: 6,
+  idle_timeout: 0,
+  max_lifetime: null,
+  connect_timeout: 20,
+  prepare: false,
+});
 
-CREATE TABLE IF NOT EXISTS reset_tokens (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  expires_at TEXT NOT NULL,
-  used_at TEXT,
-  created_at TEXT NOT NULL
-);
+function normalise(value) {
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "bigint") return Number(value);
+  if (typeof value === "boolean") return value ? 1 : 0;
+  return value;
+}
 
-CREATE TABLE IF NOT EXISTS profiles (
-  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  course TEXT NOT NULL,
-  year_label TEXT NOT NULL,
-  subjects TEXT NOT NULL,
-  goal TEXT NOT NULL,
-  daily_minutes INTEGER NOT NULL,
-  onboarded_at TEXT
-);
-
-CREATE TABLE IF NOT EXISTS documents (
-  id TEXT PRIMARY KEY,
-  owner_id TEXT REFERENCES users(id) ON DELETE CASCADE,
-  kind TEXT NOT NULL,
-  title TEXT NOT NULL,
-  subtitle TEXT,
-  citation TEXT,
-  court TEXT,
-  year INTEGER,
-  subject TEXT,
-  jurisdiction TEXT,
-  doc_type TEXT,
-  source_url TEXT,
-  official_text TEXT,
-  explanation TEXT,
-  brief TEXT,
-  meta TEXT NOT NULL DEFAULT '{}',
-  verification TEXT NOT NULL,
-  created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS bookmarks (
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
-  created_at TEXT NOT NULL,
-  PRIMARY KEY (user_id, document_id)
-);
-
-CREATE TABLE IF NOT EXISTS notes (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
-  body TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS highlights (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
-  text TEXT NOT NULL,
-  note TEXT,
-  created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS scan_jobs (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'draft',
-  pages TEXT NOT NULL DEFAULT '[]',
-  raw_text TEXT NOT NULL DEFAULT '',
-  error TEXT,
-  document_id TEXT,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS flashcards (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  document_id TEXT REFERENCES documents(id) ON DELETE SET NULL,
-  front TEXT NOT NULL,
-  back TEXT NOT NULL,
-  source TEXT,
-  ease REAL NOT NULL DEFAULT 2.5,
-  interval_days INTEGER NOT NULL DEFAULT 0,
-  due_at TEXT NOT NULL,
-  reps INTEGER NOT NULL DEFAULT 0,
-  lapses INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS review_logs (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  card_id TEXT NOT NULL,
-  rating INTEGER NOT NULL,
-  prev_interval INTEGER NOT NULL,
-  reviewed_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS quizzes (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  document_id TEXT,
-  title TEXT NOT NULL,
-  subject TEXT,
-  questions TEXT NOT NULL,
-  created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS quiz_attempts (
-  id TEXT PRIMARY KEY,
-  quiz_id TEXT NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  answers TEXT NOT NULL,
-  score INTEGER NOT NULL,
-  total INTEGER NOT NULL,
-  created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS conversations (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  document_id TEXT,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS messages (
-  id TEXT PRIMARY KEY,
-  conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-  role TEXT NOT NULL,
-  content TEXT NOT NULL,
-  citations TEXT NOT NULL DEFAULT '[]',
-  created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS deadlines (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  subject TEXT,
-  due_at TEXT NOT NULL,
-  notes TEXT,
-  completed INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS activities (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  kind TEXT NOT NULL,
-  label TEXT NOT NULL,
-  ref_id TEXT,
-  created_at TEXT NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_documents_kind ON documents(kind);
-CREATE INDEX IF NOT EXISTS idx_documents_owner ON documents(owner_id);
-CREATE INDEX IF NOT EXISTS idx_flashcards_due ON flashcards(user_id, due_at);
-CREATE INDEX IF NOT EXISTS idx_activities_user ON activities(user_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_scan_jobs_user ON scan_jobs(user_id);
+parentPort.on("message", async ({ text, params, ctrl, out }) => {
+  const status = new Int32Array(ctrl);
+  let payload;
+  try {
+    const rows = await sql.unsafe(text, params);
+    const list = Array.isArray(rows)
+      ? rows.map((row) => {
+          const plain = {};
+          for (const key of Object.keys(row)) plain[key] = normalise(row[key]);
+          return plain;
+        })
+      : [];
+    payload = { ok: true, rows: list, count: typeof rows.count === "number" ? rows.count : list.length };
+  } catch (error) {
+    payload = { ok: false, error: error && error.message ? error.message : String(error) };
+  }
+  const bytes = Buffer.from(JSON.stringify(payload), "utf8");
+  if (bytes.length + 4 > out.byteLength) {
+    new DataView(out).setUint32(0, 0);
+    Atomics.store(status, 0, 2);
+    Atomics.notify(status, 0);
+    return;
+  }
+  new Uint8Array(out, 4, bytes.length).set(bytes);
+  new DataView(out).setUint32(0, bytes.length);
+  Atomics.store(status, 0, 1);
+  Atomics.notify(status, 0);
+});
 `;
 
-type Param = string | number | bigint | null | Uint8Array;
+type Param = string | number | bigint | null | Uint8Array | boolean | Date;
+
+type QueryResult = { rows: Record<string, unknown>[]; count: number };
+
+type BridgeReply =
+  | ({ ok: true } & QueryResult)
+  | { ok: false; error: string };
+
+class PostgresBridge {
+  private worker: Worker;
+  private control: SharedArrayBuffer;
+  private status: Int32Array;
+  private capacity = 4 * 1024 * 1024;
+
+  constructor(url: string) {
+    this.control = new SharedArrayBuffer(4);
+    this.status = new Int32Array(this.control);
+    this.worker = new Worker(BRIDGE_SRC, {
+      eval: true,
+      workerData: { url, cwd: process.cwd() },
+    });
+    this.worker.unref();
+    this.worker.on("error", (error: Error) => {
+      console.error("[db] postgres worker error:", error.message);
+    });
+  }
+
+  query(text: string, params: Param[]): QueryResult {
+    for (;;) {
+      const out = new SharedArrayBuffer(4 + this.capacity);
+      Atomics.store(this.status, 0, 0);
+      this.worker.postMessage({
+        text,
+        params: params.map((value) => (value === undefined ? null : value)),
+        ctrl: this.control,
+        out,
+      });
+      const settled = Atomics.wait(this.status, 0, 0, 30_000);
+      if (settled === "timed-out") throw new Error("Postgres query timed out after 30s");
+      const state = Atomics.load(this.status, 0);
+      if (state === 2) {
+        if (this.capacity >= 128 * 1024 * 1024) throw new Error("Postgres result set too large");
+        this.capacity *= 4;
+        continue;
+      }
+      const length = new DataView(out).getUint32(0);
+      const reply = JSON.parse(
+        new TextDecoder().decode(new Uint8Array(out, 4, length)),
+      ) as BridgeReply;
+      if (!reply.ok) throw new Error(reply.error);
+      return { rows: reply.rows, count: reply.count };
+    }
+  }
+}
 
 declare global {
   // eslint-disable-next-line no-var
-  var __vidhiDb: DatabaseSync | undefined;
+  var __vidhiPg: PostgresBridge | undefined;
 }
 
-function open() {
+function connect(): PostgresBridge {
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    throw new Error(
+      "DATABASE_URL is not set — point it at the Supabase Postgres connection string.",
+    );
+  }
   const dataDir = path.join(process.cwd(), "data");
   mkdirSync(dataDir, { recursive: true });
   mkdirSync(path.join(dataDir, "uploads"), { recursive: true });
-  const db = new DatabaseSync(path.join(dataDir, "vidhi.db"));
-  db.exec(SCHEMA);
-  seedIfEmpty(db);
-  return db;
+  return new PostgresBridge(url);
 }
 
-export const db: DatabaseSync = globalThis.__vidhiDb ?? (globalThis.__vidhiDb = open());
+const bridge: PostgresBridge = globalThis.__vidhiPg ?? (globalThis.__vidhiPg = connect());
 
-/**
- * node:sqlite returns null-prototype rows, which React refuses to serialise
- * across the server/client boundary. Normalise every row to a plain object.
- */
+/** Rewrites SQLite `?` placeholders into Postgres `$1..$n`, skipping literals. */
+function toPostgres(sql: string): string {
+  let out = "";
+  let index = 0;
+  let inString = false;
+  for (let i = 0; i < sql.length; i += 1) {
+    const ch = sql[i];
+    if (ch === "'") {
+      inString = !inString;
+      out += ch;
+      continue;
+    }
+    if (ch === "?" && !inString) {
+      index += 1;
+      out += `$${index}`;
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
 export function all<T>(sql: string, ...params: Param[]): T[] {
-  const rows = db.prepare(sql).all(...params) as unknown as Record<string, unknown>[];
-  return rows.map((row) => ({ ...row })) as T[];
+  return bridge.query(toPostgres(sql), params).rows as T[];
 }
 
 export function one<T>(sql: string, ...params: Param[]): T | undefined {
-  const row = db.prepare(sql).get(...params) as unknown as Record<string, unknown> | undefined;
-  return row ? ({ ...row } as T) : undefined;
+  return (bridge.query(toPostgres(sql), params).rows as T[])[0];
 }
 
 export function run(sql: string, ...params: Param[]) {
-  return db.prepare(sql).run(...params);
+  const reply = bridge.query(toPostgres(sql), params);
+  return { changes: reply.count, rows: reply.rows };
 }
 
 export const nowIso = () => new Date().toISOString();
+
+seedIfEmpty({ run, one });
+
 
 /* ---------------------------------- users --------------------------------- */
 
@@ -258,19 +215,19 @@ export function createUser(input: {
     input.name,
     nowIso(),
   );
-  return one<UserRecord>("SELECT id, email, name, created_at as createdAt FROM users WHERE id = ?", input.id)!;
+  return one<UserRecord>("SELECT id, email, name, created_at as \"createdAt\" FROM users WHERE id = ?", input.id)!;
 }
 
 export function findUserByEmail(email: string) {
   return one<{ id: string; email: string; name: string; passwordHash: string; createdAt: string }>(
-    "SELECT id, email, name, password_hash as passwordHash, created_at as createdAt FROM users WHERE email = ?",
+    "SELECT id, email, name, password_hash as \"passwordHash\", created_at as \"createdAt\" FROM users WHERE email = ?",
     email.toLowerCase(),
   );
 }
 
 export function findUserById(id: string): UserRecord | undefined {
   return one<UserRecord>(
-    "SELECT id, email, name, created_at as createdAt FROM users WHERE id = ?",
+    "SELECT id, email, name, created_at as \"createdAt\" FROM users WHERE id = ?",
     id,
   );
 }
@@ -285,7 +242,7 @@ export function getProfile(userId: string): ProfileRecord | undefined {
     dailyMinutes: number;
     onboardedAt: string | null;
   }>(
-    "SELECT user_id as userId, course, year_label as yearLabel, subjects, goal, daily_minutes as dailyMinutes, onboarded_at as onboardedAt FROM profiles WHERE user_id = ?",
+    "SELECT user_id as \"userId\", course, year_label as \"yearLabel\", subjects, goal, daily_minutes as \"dailyMinutes\", onboarded_at as \"onboardedAt\" FROM profiles WHERE user_id = ?",
     userId,
   );
   if (!row) return undefined;
@@ -359,9 +316,9 @@ function rowToDocument(row: Record<string, unknown>): DocumentRecord {
   };
 }
 
-const DOC_COLUMNS = `id, owner_id as ownerId, kind, title, subtitle, citation, court, year, subject,
-  jurisdiction, doc_type as docType, source_url as sourceUrl, official_text as officialText,
-  explanation, brief, meta, verification, created_at as createdAt`;
+const DOC_COLUMNS = `id, owner_id as "ownerId", kind, title, subtitle, citation, court, year, subject,
+  jurisdiction, doc_type as "docType", source_url as "sourceUrl", official_text as "officialText",
+  explanation, brief, meta, verification, created_at as "createdAt"`;
 
 /* -------------------------------- documents ------------------------------- */
 
@@ -378,7 +335,7 @@ export function listDocuments(opts: {
   const where: string[] = ["(owner_id IS NULL OR owner_id = ?)"];
   const params: Param[] = [opts.userId];
   if (opts.q) {
-    where.push("(title LIKE ? OR citation LIKE ? OR official_text LIKE ? OR explanation LIKE ? OR brief LIKE ? OR meta LIKE ?)");
+    where.push("(title ILIKE ? OR citation ILIKE ? OR official_text ILIKE ? OR explanation ILIKE ? OR brief ILIKE ? OR meta ILIKE ?)");
     const like = `%${opts.q}%`;
     params.push(like, like, like, like, like, like);
   }
@@ -391,7 +348,7 @@ export function listDocuments(opts: {
     params.push(opts.kind);
   }
   if (opts.court) {
-    where.push("court LIKE ?");
+    where.push("court ILIKE ?");
     params.push(`%${opts.court}%`);
   }
   if (opts.year) {
@@ -406,7 +363,7 @@ export function listDocuments(opts: {
   const rows = all<Record<string, unknown>>(
     `SELECT ${DOC_COLUMNS} FROM documents WHERE ${where.join(" AND ")} ORDER BY
       CASE kind WHEN 'statute' THEN 0 WHEN 'judgment' THEN 1 WHEN 'brief' THEN 2 WHEN 'article' THEN 3 ELSE 4 END,
-      title COLLATE NOCASE LIMIT ${limit}`,
+      lower(title) LIMIT ${limit}`,
     ...params,
   );
   return rows.map(rowToDocument);
@@ -517,10 +474,10 @@ export function toggleBookmark(userId: string, documentId: string) {
 
 export function listBookmarks(userId: string) {
   return all<DocumentRecord & { bookmarkedAt: string }>(
-    `SELECT d.id, d.owner_id as ownerId, d.kind, d.title, d.subtitle, d.citation, d.court, d.year,
-       d.subject, d.jurisdiction, d.doc_type as docType, d.source_url as sourceUrl,
-       d.official_text as officialText, d.explanation, d.brief, d.meta, d.verification,
-       d.created_at as createdAt, b.created_at as bookmarkedAt
+    `SELECT d.id, d.owner_id as "ownerId", d.kind, d.title, d.subtitle, d.citation, d.court, d.year,
+       d.subject, d.jurisdiction, d.doc_type as "docType", d.source_url as "sourceUrl",
+       d.official_text as "officialText", d.explanation, d.brief, d.meta, d.verification,
+       d.created_at as "createdAt", b.created_at as "bookmarkedAt"
      FROM bookmarks b JOIN documents d ON d.id = b.document_id
      WHERE b.user_id = ? ORDER BY b.created_at DESC`,
     userId,
@@ -531,7 +488,7 @@ export function listBookmarks(userId: string) {
 
 export function listNotes(userId: string, documentId: string) {
   return all<{ id: string; body: string; createdAt: string; updatedAt: string }>(
-    "SELECT id, body, created_at as createdAt, updated_at as updatedAt FROM notes WHERE user_id = ? AND document_id = ? ORDER BY created_at DESC",
+    "SELECT id, body, created_at as \"createdAt\", updated_at as \"updatedAt\" FROM notes WHERE user_id = ? AND document_id = ? ORDER BY created_at DESC",
     userId,
     documentId,
   );
@@ -555,7 +512,7 @@ export function deleteNote(userId: string, noteId: string) {
 
 export function listHighlights(userId: string, documentId: string) {
   return all<{ id: string; text: string; createdAt: string }>(
-    "SELECT id, text, created_at as createdAt FROM highlights WHERE user_id = ? AND document_id = ? ORDER BY created_at DESC",
+    "SELECT id, text, created_at as \"createdAt\" FROM highlights WHERE user_id = ? AND document_id = ? ORDER BY created_at DESC",
     userId,
     documentId,
   );
@@ -610,8 +567,8 @@ export function createScanJob(userId: string, title: string): ScanJobRecord {
 
 export function getScanJob(id: string, userId: string): ScanJobRecord | undefined {
   const row = one<Record<string, unknown>>(
-    `SELECT id, user_id as userId, title, status, pages, raw_text as rawText, error,
-      document_id as documentId, created_at as createdAt, updated_at as updatedAt
+    `SELECT id, user_id as "userId", title, status, pages, raw_text as "rawText", error,
+      document_id as "documentId", created_at as "createdAt", updated_at as "updatedAt"
      FROM scan_jobs WHERE id = ? AND user_id = ?`,
     id,
     userId,
@@ -647,8 +604,8 @@ export function deleteScanJob(id: string, userId: string) {
 
 export function listScanJobs(userId: string) {
   return all<Record<string, unknown>>(
-    `SELECT id, user_id as userId, title, status, pages, raw_text as rawText, error,
-      document_id as documentId, created_at as createdAt, updated_at as updatedAt
+    `SELECT id, user_id as "userId", title, status, pages, raw_text as "rawText", error,
+      document_id as "documentId", created_at as "createdAt", updated_at as "updatedAt"
      FROM scan_jobs WHERE user_id = ? ORDER BY updated_at DESC LIMIT 30`,
     userId,
   ).map(rowToScanJob);
@@ -796,7 +753,7 @@ export function createQuiz(
 
 export function getQuiz(id: string, userId: string): QuizRecord | undefined {
   const row = one<Record<string, unknown>>(
-    "SELECT id, user_id as userId, document_id as documentId, title, subject, questions, created_at as createdAt FROM quizzes WHERE id = ? AND user_id = ?",
+    "SELECT id, user_id as \"userId\", document_id as \"documentId\", title, subject, questions, created_at as \"createdAt\" FROM quizzes WHERE id = ? AND user_id = ?",
     id,
     userId,
   );
@@ -806,7 +763,7 @@ export function getQuiz(id: string, userId: string): QuizRecord | undefined {
 
 export function listQuizzes(userId: string): QuizRecord[] {
   return all<Record<string, unknown>>(
-    "SELECT id, user_id as userId, document_id as documentId, title, subject, questions, created_at as createdAt FROM quizzes WHERE user_id = ? ORDER BY created_at DESC LIMIT 50",
+    "SELECT id, user_id as \"userId\", document_id as \"documentId\", title, subject, questions, created_at as \"createdAt\" FROM quizzes WHERE user_id = ? ORDER BY created_at DESC LIMIT 50",
     userId,
   ).map((row) => ({ ...row, questions: JSON.parse(row.questions as string) }) as QuizRecord);
 }
@@ -832,7 +789,7 @@ export function recordQuizAttempt(
 
 export function quizAttempts(userId: string) {
   return all<{ id: string; quizId: string; title: string; score: number; total: number; createdAt: string }>(
-    `SELECT a.id, a.quiz_id as quizId, q.title, a.score, a.total, a.created_at as createdAt
+    `SELECT a.id, a.quiz_id as "quizId", q.title, a.score, a.total, a.created_at as "createdAt"
      FROM quiz_attempts a JOIN quizzes q ON q.id = a.quiz_id WHERE a.user_id = ? ORDER BY a.created_at DESC LIMIT 20`,
     userId,
   );
@@ -852,7 +809,7 @@ function rowToMessage(row: Record<string, unknown>): ChatMessage {
 
 export function listConversations(userId: string): ConversationRecord[] {
   return all<ConversationRecord>(
-    `SELECT id, user_id as userId, title, document_id as documentId, created_at as createdAt, updated_at as updatedAt
+    `SELECT id, user_id as "userId", title, document_id as "documentId", created_at as "createdAt", updated_at as "updatedAt"
      FROM conversations WHERE user_id = ? ORDER BY updated_at DESC LIMIT 40`,
     userId,
   );
@@ -860,7 +817,7 @@ export function listConversations(userId: string): ConversationRecord[] {
 
 export function getConversation(id: string, userId: string) {
   return one<ConversationRecord>(
-    `SELECT id, user_id as userId, title, document_id as documentId, created_at as createdAt, updated_at as updatedAt
+    `SELECT id, user_id as "userId", title, document_id as "documentId", created_at as "createdAt", updated_at as "updatedAt"
      FROM conversations WHERE id = ? AND user_id = ?`,
     id,
     userId,
@@ -883,7 +840,7 @@ export function createConversation(userId: string, title: string, documentId?: s
 
 export function listMessages(conversationId: string): ChatMessage[] {
   return all<Record<string, unknown>>(
-    "SELECT id, role, content, citations, created_at as createdAt FROM messages WHERE conversation_id = ? ORDER BY created_at",
+    "SELECT id, role, content, citations, created_at as \"createdAt\" FROM messages WHERE conversation_id = ? ORDER BY created_at",
     conversationId,
   ).map(rowToMessage);
 }
@@ -916,7 +873,7 @@ export function deleteConversation(id: string, userId: string) {
 
 export function listDeadlines(userId: string): DeadlineRecord[] {
   return all<Record<string, unknown>>(
-    "SELECT id, title, subject, due_at as dueAt, notes, completed FROM deadlines WHERE user_id = ? ORDER BY due_at",
+    "SELECT id, title, subject, due_at as \"dueAt\", notes, completed FROM deadlines WHERE user_id = ? ORDER BY due_at",
     userId,
   ).map((r) => ({
     ...r,
@@ -952,7 +909,7 @@ export function deleteDeadline(userId: string, id: string) {
 
 export function recentActivity(userId: string, limit = 8): ActivityRecord[] {
   return all<Record<string, unknown>>(
-    "SELECT id, kind, label, ref_id as refId, created_at as createdAt FROM activities WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
+    "SELECT id, kind, label, ref_id as \"refId\", created_at as \"createdAt\" FROM activities WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
     userId,
     limit,
   ).map((r) => ({ ...r, refId: r.refId ?? null })) as ActivityRecord[];
@@ -1000,10 +957,12 @@ export function dailyActivityCounts(userId: string, days = 7) {
 
 export function recentlyViewed(userId: string, limit = 5) {
   return all<{ id: string; title: string; kind: DocumentKind; viewedAt: string }>(
-    `SELECT a.ref_id as id, d.title, d.kind, a.created_at as viewedAt
-     FROM activities a JOIN documents d ON d.id = a.ref_id
-     WHERE a.user_id = ? AND a.kind = 'view' AND a.ref_id IS NOT NULL
-     GROUP BY a.ref_id ORDER BY MAX(a.created_at) DESC LIMIT ?`,
+    `SELECT * FROM (
+       SELECT DISTINCT ON (a.ref_id) a.ref_id as id, d.title, d.kind, a.created_at as "viewedAt"
+       FROM activities a JOIN documents d ON d.id = a.ref_id
+       WHERE a.user_id = ? AND a.kind = 'view' AND a.ref_id IS NOT NULL
+       ORDER BY a.ref_id, a.created_at DESC
+     ) recent ORDER BY "viewedAt" DESC LIMIT ?`,
     userId,
     limit,
   );

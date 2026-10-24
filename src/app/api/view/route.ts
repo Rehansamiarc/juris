@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   }
 
   const recent = one<{ createdAt: string }>(
-    "SELECT created_at as createdAt FROM activities WHERE user_id = ? AND kind = 'view' AND ref_id = ? ORDER BY created_at DESC LIMIT 1",
+    "SELECT created_at as \"createdAt\" FROM activities WHERE user_id = ? AND kind = 'view' AND ref_id = ? ORDER BY created_at DESC LIMIT 1",
     user.id,
     documentId,
   );

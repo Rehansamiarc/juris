@@ -1,4 +1,22 @@
-import type { DatabaseSync } from "node:sqlite";
+
+type SqlValue = string | number | bigint | null | Uint8Array | boolean | Date;
+
+export type SqlExecutor = {
+  run: (sql: string, ...params: SqlValue[]) => unknown;
+  one: <T>(sql: string, ...params: SqlValue[]) => T | undefined;
+};
+
+/** Minimal prepare() shim so the seed SQL keeps its original shape. */
+function prepared(exec: SqlExecutor) {
+  return {
+    prepare: (sql: string) => ({
+      run: (...params: SqlValue[]) => exec.run(sql, ...params),
+      get: <T,>() => exec.one<T>(sql),
+    }),
+  };
+}
+
+type SeedDb = ReturnType<typeof prepared>;
 import { hashPassword } from "./password";
 import { SEED_CASES } from "./seed-cases";
 import { SEED_NOTES, SEED_STATUTES, type SeedDocument } from "./seed-statutes";
@@ -10,7 +28,7 @@ const DOC_INSERT = `INSERT INTO documents
 
 const DAY = 86_400_000;
 
-function insertDocuments(db: DatabaseSync) {
+function insertDocuments(db: SeedDb) {
   const stmt = db.prepare(DOC_INSERT);
   const docs: SeedDocument[] = [...SEED_STATUTES, ...SEED_CASES, ...SEED_NOTES];
   for (const doc of docs) {
@@ -36,7 +54,7 @@ function insertDocuments(db: DatabaseSync) {
   }
 }
 
-function seedDemoAccount(db: DatabaseSync) {
+function seedDemoAccount(db: SeedDb) {
   const userId = "demo-user";
   const now = new Date();
   const iso = (offsetDays: number, hour = 19) => {
@@ -179,9 +197,10 @@ function seedDemoAccount(db: DatabaseSync) {
   );
 }
 
-export function seedIfEmpty(db: DatabaseSync) {
+export function seedIfEmpty(exec: SqlExecutor) {
+  const db = prepared(exec);
   const row = db.prepare("SELECT COUNT(*) as n FROM documents").get() as { n: number };
-  if (row.n > 0) return;
+  if (Number(row?.n ?? 0) > 0) return;
   insertDocuments(db);
   seedDemoAccount(db);
 }

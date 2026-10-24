@@ -45,7 +45,7 @@ export const currentUser = cache(async (): Promise<UserRecord | null> => {
   const token = jar.get(COOKIE_NAME)?.value;
   if (!token) return null;
   const row = one<{ userId: string; expiresAt: string }>(
-    "SELECT user_id as userId, expires_at as expiresAt FROM sessions WHERE id = ?",
+    "SELECT user_id as \"userId\", expires_at as \"expiresAt\" FROM sessions WHERE id = ?",
     digest(token),
   );
   if (!row) return null;
@@ -95,7 +95,7 @@ export function createResetToken(email: string): string | null {
 
 export function consumeResetToken(token: string): string | null {
   const row = one<{ userId: string; expiresAt: string; usedAt: string | null }>(
-    "SELECT user_id as userId, expires_at as expiresAt, used_at as usedAt FROM reset_tokens WHERE id = ?",
+    "SELECT user_id as \"userId\", expires_at as \"expiresAt\", used_at as \"usedAt\" FROM reset_tokens WHERE id = ?",
     digest(token),
   );
   if (!row || row.usedAt || row.expiresAt < nowIso()) return null;
