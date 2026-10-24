@@ -11,3 +11,6 @@ next-env.d.ts
 jurid-standalone.html
 juris-standalone.html
 .DS_Store
+
+.vercel
+.env*

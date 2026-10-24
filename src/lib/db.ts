@@ -1,6 +1,11 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { Worker } from "node:worker_threads";
+// The worker resolves the driver at runtime from node_modules, which bundlers
+// cannot see inside an eval'd worker source. Importing it here (and marking it
+// external in next.config.ts) is what gets the package shipped to hosts like
+// Vercel, where a missing module shows up as a 30s query timeout.
+import postgresDriver from "postgres";
 import type {
   ActivityRecord,
   CaseBrief,
@@ -28,6 +33,8 @@ import { seedIfEmpty } from "./seed";
  * thread blocks on Atomics.wait for the reply. `all` / `one` / `run` keep
  * their exact signatures while the rows come from Supabase Postgres.
  */
+
+void postgresDriver;
 
 const BRIDGE_SRC = String.raw`
 const { parentPort, workerData } = require("node:worker_threads");
